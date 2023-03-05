@@ -15,20 +15,33 @@ int main(int argc, char *argv[])
 {
 
     int N = atoi(argv[1]);
-    int x[N];
+
+    int *x = malloc(N * sizeof(int));
     int j;
+
     int primeNumber;
     char num;
+
     int posibles_elementos = N / 2;
+    #pragma omp parallel for shared(x) private(j)
     for (j = 0; j < N; j++)
         x[j] = rand() % (posibles_elementos) + 1;
 
+
     double start_time = omp_get_wtime();
-    par_qsort(x, 0, N - 1);
+
+#pragma omp parallel
+    {
+#pragma omp single nowait
+        par_qsort(x, 0, N - 1);
+    }
+
+    double end_time = omp_get_wtime();
 
     printf("Primeros Elementos: %d, %d, %d\n", x[0], x[1], x[2]);
     printf("Medios Elementos: %d, %d, %d\n", x[N / 4], x[N / 4 + 1], x[N / 4 + 2]);
     printf("Ultimos Elementos: %d, %d, %d\n", x[N - 3], x[N - 2], x[N - 1]);
+    printf("Tiempo de ejecucion: %f segundos\n", end_time - start_time);
 
     FILE *escribirNumeros = fopen(INFILE, "w");
     if (escribirNumeros == NULL)
@@ -38,9 +51,13 @@ int main(int argc, char *argv[])
     }
 
     // Llenamos el archivo INFILE con números
-    for (int i = 0; i < (N - 1); i++)
+    #pragma omp parallel shared(escribirNumeros) private(j)
     {
-        fprintf(escribirNumeros, "%d,", x[i]);
+        #pragma omp for
+        for (j = 0; j < (N - 1); j++)
+        {
+            fprintf(escribirNumeros, "%d,", x[j]);
+        }
     }
     fclose(escribirNumeros); // Cerramos el archivo si no lo vamos a usar nuevamente
 
@@ -62,14 +79,17 @@ int main(int argc, char *argv[])
 
     // Leemos el archivo INFILE y escribimos los resultados en OUTFILE
     char *ch = (char *)malloc(256 * sizeof(char));
-    while (fgets(ch, 256, leerNumeros) != NULL)
+    #pragma omp parallel shared(leerNumeros, escribirOrdenados) private(ch)
     {
-        char *token = strtok(ch, ",");
-        while (token != NULL)
+        #pragma omp while (fgets(ch, 256, leerNumeros) != NULL)
         {
-            printf("%s ", token);
-            fprintf(escribirOrdenados, "%s ", token);
-            token = strtok(NULL, ",");
+            char *token = strtok(ch, ",");
+            while (token != NULL)
+            {
+                printf("%s ", token);
+                fprintf(escribirOrdenados, "%s ", token);
+                token = strtok(NULL, ",");
+            }
         }
     }
     printf("\n");
@@ -78,53 +98,37 @@ int main(int argc, char *argv[])
     fclose(leerNumeros);
     fclose(escribirOrdenados);
 
-    double end_time = omp_get_wtime();
-    printf("Tiempo de ejecucion: %f segundos\n", end_time - start_time);
-
     return 0;
 }
 
-void par_qsort(int *data, int lo, int hi) 
+void par_qsort(int *data, int lo, int hi)
 {
-    if (lo > hi)
+    if (lo >= hi)
         return;
+
     int l = lo;
     int h = hi;
     int p = data[(hi + lo) / 2];
 
-    #pragma omp parallel
+    while (l <= h)
     {
-        #pragma omp sections
+        while (data[l] < p)
+            l++;
+        while (data[h] > p)
+            h--;
+        if (l <= h)
         {
-            #pragma omp section
-            {
-                while (l <= h)
-                {
-                    while ((data[l] - p) < 0)
-                        l++;
-                    while ((data[h] - p) > 0)
-                        h--;
-                    if (l <= h)
-                    {
-                        // swap
-                        int tmp = data[l];
-                        data[l] = data[h];
-                        data[h] = tmp;
-                        l++;
-                        h--;
-                    }
-                }
-            }
-            #pragma omp section
-            {
-                // recursive call
-                par_qsort(data, lo, h);
-            }
-            #pragma omp section
-            {
-                // recursive call
-                par_qsort(data, l, hi);
-            }
+            int tmp = data[l];
+            data[l] = data[h];
+            data[h] = tmp;
+            l++;
+            h--;
         }
     }
+
+#pragma omp task
+    par_qsort(data, lo, h);
+
+#pragma omp task
+    par_qsort(data, l, hi);
 }
