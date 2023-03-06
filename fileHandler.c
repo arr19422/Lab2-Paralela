@@ -4,6 +4,7 @@
 #include <stdlib.h> //exit, EXIT_FAILURE
 #include <string.h> //strtok, atoi
 #include <stdbool.h>
+#include <omp.h>
 
 #define INFILE "numeros.csv"
 #define OUTFILE "ordenados.csv"
@@ -13,6 +14,7 @@ void par_qsort(int *data, int lo, int hi);
 int main(int argc, char *argv[])
 {
 
+    double start, end;
     int N = atoi(argv[1]);
     // int T = atoi(argv[2]);
 
@@ -27,6 +29,7 @@ int main(int argc, char *argv[])
     for (j = 0; j < N; j++)
         x[j] = rand() % (posibles_elementos) + 1;
 
+    start = omp_get_wtime();
     par_qsort(x, 0, N - 1);
 
     printf("Primeros Elementos: %d, %d, %d\n", x[0], x[1], x[2]);
@@ -81,6 +84,9 @@ int main(int argc, char *argv[])
     free(ch);
     fclose(leerNumeros);
     fclose(escribirOrdenados);
+
+    end = omp_get_wtime();
+    printf("Tiempo de ejecucion en segundos es: %f\n", end - start);
 
     return 0;
 }

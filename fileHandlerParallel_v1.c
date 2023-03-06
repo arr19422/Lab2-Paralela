@@ -94,6 +94,7 @@ void par_qsort(int *data, int lo, int hi)
 
     #pragma omp parallel
     {
+        printf("Cantidad de hilos utilizados: %d\n", omp_get_num_threads());
         #pragma omp sections
         {
             #pragma omp section
